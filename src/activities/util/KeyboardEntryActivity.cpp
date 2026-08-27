@@ -526,14 +526,14 @@ bool KeyboardEntryActivity::cursorPositionFromPoint(const int x, const int y, si
 
 fui::Rect KeyboardEntryActivity::keyboardRect() const {
   const auto& metrics = UITheme::getInstance().getMetrics();
-  const int pageWidth = renderer.getScreenWidth();
+  const Rect content = UITheme::getContentArea(renderer);  // clear the bezel on rounded panels
   const int pageHeight = renderer.getScreenHeight();
   const int rows = currentLayout().rowCount;
   const bool hasTouch = mappedInput.hasTouch();
   const int height = keyboardKeysHeight(metrics, rows, hasTouch);
   const int hintGap = hasTouch ? metrics.verticalSpacing - metrics.keyboardVerticalOffset : BUTTON_KEYBOARD_HINT_GAP;
   const int y = pageHeight - metrics.buttonHintsHeight - height - hintGap;
-  return fui::Rect{0, static_cast<int16_t>(y), static_cast<int16_t>(pageWidth),
+  return fui::Rect{static_cast<int16_t>(content.x), static_cast<int16_t>(y), static_cast<int16_t>(content.width),
                    static_cast<int16_t>(hasTouch ? pageHeight - y : height)};
 }
 
@@ -739,6 +739,7 @@ void KeyboardEntryActivity::render(RenderLock&&) {
   renderer.clearScreen();
 
   const auto pageWidth = renderer.getScreenWidth();
+  const Rect content = UITheme::getContentArea(renderer);  // bezel-safe content bounds
   const auto& metrics = UITheme::getInstance().getMetrics();
 
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, title.c_str());
@@ -853,8 +854,8 @@ void KeyboardEntryActivity::render(RenderLock&&) {
 
   const int fieldWidth = (inputHeight > 0) ? maxLineWidth : textWidth;
   const int lineMargin = effectiveMargin;
-  GUI.drawTextField(renderer, Rect{0, inputStartY, pageWidth, inputHeight}, fieldWidth, cursorMode, lineMargin,
-                    pageWidth - 2 * lineMargin);
+  GUI.drawTextField(renderer, Rect{content.x, inputStartY, content.width, inputHeight}, fieldWidth, cursorMode,
+                    lineMargin, content.width - 2 * lineMargin);
 
   if (cursorMode && !togglePos && cursorPos <= displayText.length()) {
     static constexpr int blockPadding = 1;
