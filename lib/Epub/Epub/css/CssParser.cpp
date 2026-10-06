@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstring>
 #include <string_view>
+#include <cstdlib>
 
 namespace {
 
@@ -94,12 +95,18 @@ void forEachDelimitedToken(std::string_view s, Pred isDelimiter, F&& fn) {
 // signed numbers without manual trimming. Returns false on empty input, a
 // non-numeric suffix, or any from_chars error.
 template <typename T>
-bool tryParseNumber(std::string_view s, T& out) {
-  const char* begin = s.data();
-  const char* end = s.data() + s.size();
-  if (begin < end && *begin == '+') ++begin;
-  const auto r = std::from_chars(begin, end, out);
-  return r.ec == std::errc{} && r.ptr == end;
+bool tryParseNumber(const std::string_view& sv, T& out) {
+  if constexpr (std::is_floating_point_v<T>) {
+    std::string s(sv);
+    char* end = nullptr;
+    out = std::strtof(s.c_str(), &end);
+    return end == s.c_str() + s.size();
+  } else {
+    const char* begin = sv.data();
+    const char* end = begin + sv.size();
+    const auto r = std::from_chars(begin, end, out);
+    return r.ec == std::errc{} && r.ptr == end;
+  }
 }
 
 // Collect up to 4 whitespace-separated tokens for a CSS edge-value shorthand

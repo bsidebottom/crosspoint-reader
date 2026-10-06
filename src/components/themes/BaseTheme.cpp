@@ -1,8 +1,10 @@
 #include "BaseTheme.h"
 
+#include <FreeInkUIIcon.h>
 #include <FreeInkUIGfxRenderer.h>
 #include <GfxRenderer.h>
 #include <HalClock.h>
+#include <HalFrontlight.h>
 #include <HalGPIO.h>
 #include <HalPowerManager.h>
 #include <HalStorage.h>
@@ -22,6 +24,7 @@
 #include "components/icons/bookmark.h"
 #include "components/icons/cover.h"
 #include "components/icons/headerIcons.h"
+#include "components/icons/listIcons.h"
 #include "fontIds.h"
 
 freeink::ui::BitmapRef BaseTheme::checkboxIcon(const bool checked) {
@@ -339,6 +342,7 @@ void BaseTheme::applyHeaderStatus(const GfxRenderer& renderer, freeink::ui::Head
   status.battery.glyphWidth = static_cast<int16_t>(metrics.batteryWidth);
   status.battery.glyphHeight = static_cast<int16_t>(metrics.batteryHeight);
   status.battery.gap = batteryPercentSpacing;
+  status.battery.statusIcon = Frontlight.isOn() ? freeink::ui::bitmapFromIcon(icon_sun_24) : freeink::ui::BitmapRef{};
   status.batteryLeft = metrics.headerBatterySide == 1;
   status.edgeInset = static_cast<int16_t>(headerStatusInset());
 
@@ -850,10 +854,26 @@ void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, c
   const bool showBatteryPercentage = sb.showBatteryPercent;
 
   if (sb.showBattery) {
-    GUI.drawBatteryLeft(renderer,
-                        Rect{leftClusterX + leftClusterWidth, textY, metrics.batteryWidth, metrics.batteryHeight},
-                        showBatteryPercentage);
-    int batteryWidth = metrics.batteryWidth;
+    int batteryX = leftClusterX + leftClusterWidth;
+    int iconWidth = 0;
+
+    if (Frontlight.isOn()) {
+      constexpr int frontlightStatusIconSize = 24;
+      constexpr int frontlightStatusIconGap = 4;
+      const int textLineHeight = renderer.getLineHeight(SMALL_FONT_ID);
+      const int frontlightX = leftClusterX + leftClusterWidth;
+      const int frontlightY = textY + (textLineHeight - frontlightStatusIconSize) / 2 + 1;
+      freeink::ui::GfxRendererTarget statusTarget(renderer);
+      statusTarget.bitmap(
+          freeink::ui::Rect{frontlightX, frontlightY, frontlightStatusIconSize, frontlightStatusIconSize},
+          freeink::ui::bitmapFromIcon(icon_sun_24), freeink::ui::BitmapMode::Center,
+          freeink::ui::Paint::solid(freeink::ui::Color::Black));
+      batteryX += frontlightStatusIconSize + frontlightStatusIconGap;
+      iconWidth = frontlightStatusIconSize + frontlightStatusIconGap;
+    }
+
+    GUI.drawBatteryLeft(renderer, Rect{batteryX, textY, metrics.batteryWidth, metrics.batteryHeight}, showBatteryPercentage);
+    int batteryWidth = metrics.batteryWidth + iconWidth;
 
     if (showBatteryPercentage) {
       const uint16_t percentage = powerManager.getBatteryPercentage();
