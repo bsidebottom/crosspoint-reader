@@ -857,29 +857,27 @@ void BaseTheme::drawStatusBar(GfxRenderer& renderer, const float bookProgress, c
     int batteryX = leftClusterX + leftClusterWidth;
     int iconWidth = 0;
 
+    GUI.drawBatteryLeft(renderer, Rect{batteryX, textY, metrics.batteryWidth, metrics.batteryHeight}, showBatteryPercentage);
+    int batteryWidth = metrics.batteryWidth;
+
+    if (showBatteryPercentage) {
+      const uint16_t percentage = powerManager.getBatteryPercentage();
+      batteryWidth += batteryPercentSpacing + renderer.getTextWidth(SMALL_FONT_ID, (std::to_string(percentage) + "%").c_str());
+    }
+
     if (Frontlight.isOn()) {
       constexpr int frontlightStatusIconSize = 24;
       constexpr int frontlightStatusIconGap = 4;
       const int textLineHeight = renderer.getLineHeight(SMALL_FONT_ID);
-      const int frontlightX = leftClusterX + leftClusterWidth;
+      const int frontlightX = batteryX + batteryWidth + frontlightStatusIconGap;
       const int frontlightY = textY + (textLineHeight - frontlightStatusIconSize) / 2 + 1;
       freeink::ui::GfxRendererTarget statusTarget(renderer);
       statusTarget.bitmap(
           freeink::ui::Rect{frontlightX, frontlightY, frontlightStatusIconSize, frontlightStatusIconSize},
           freeink::ui::bitmapFromIcon(icon_sun_24), freeink::ui::BitmapMode::Center,
           freeink::ui::Paint::solid(freeink::ui::Color::Black));
-      batteryX += frontlightStatusIconSize + frontlightStatusIconGap;
       iconWidth = frontlightStatusIconSize + frontlightStatusIconGap;
-    }
-
-    GUI.drawBatteryLeft(renderer, Rect{batteryX, textY, metrics.batteryWidth, metrics.batteryHeight}, showBatteryPercentage);
-    int batteryWidth = metrics.batteryWidth + iconWidth;
-
-    if (showBatteryPercentage) {
-      const uint16_t percentage = powerManager.getBatteryPercentage();
-      // width of icon + spacing + text for layout purposes
-      batteryWidth +=
-          batteryPercentSpacing + renderer.getTextWidth(SMALL_FONT_ID, (std::to_string(percentage) + "%").c_str());
+      batteryWidth += iconWidth;
     }
 
     leftClusterWidth += batteryWidth;

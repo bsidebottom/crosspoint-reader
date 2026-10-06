@@ -25,6 +25,7 @@
 #include "BookmarkEntry.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "DictionaryDefinitionActivity.h"
 #include "DictionaryWordSelectActivity.h"
 #include "EpubReaderBookmarksActivity.h"
 #include "EpubReaderChapterSelectionActivity.h"
@@ -77,6 +78,22 @@ constexpr char READ_FOLDER[] = "/read";
 bool isInReadFolder(const std::string& path) {
   constexpr size_t n = sizeof(READ_FOLDER) - 1;
   return path.size() > n && path.compare(0, n, READ_FOLDER) == 0 && path[n] == '/';
+}
+
+void indexBuildYield(void*) { vTaskDelay(1); }
+
+bool isSelectableDictionaryToken(const char* text) {
+  for (const uint8_t* p = reinterpret_cast<const uint8_t*>(text); *p != 0; p++) {
+    if (*p < 0x80) {
+      if (std::isalnum(*p)) return true;
+    } else if (*p == 0xE2 && (p[1] == 0x80 || p[1] == 0x81)) {
+      if (p[2] == 0) break;
+      p += 2;
+    } else {
+      return true;
+    }
+  }
+  return false;
 }
 
 struct ProgressRange {
@@ -356,6 +373,86 @@ void EpubReaderActivity::openDictionaryWordSelect() {
                          [this](const ActivityResult&) { requestUpdate(); });
 }
 
+bool EpubReaderActivity::lookupDictionaryWord(const std::string& word) {
+  if (word.empty()) return false;
+  if (SETTINGS.dictionaryName[0] == '\0') {
+    showDictionaryMessage = true;
+    dictionaryMessageTime = millis();
+    requestUpdate();
+    return false;
+  }
+
+  Dictionary dict;
+  const bool opened = dict.open(SETTINGS.dictionaryName);
+  if (!opened) {
+    showDictionaryMessage = true;
+    dictionaryMessageTime = millis();
+    requestUpdate();
+    return false;
+  }
+
+  if (dict.needsIndex()) {
+    Dictionary::IndexResult indexResult = Dictionary::IndexResult::Ok;
+    if (!dict.buildIndex(&indexBuildYield, nullptr, &indexResult)) {
+      LOG_ERR("ERS", "Dictionary index build failed for %s", SETTINGS.dictionaryName);
+      showDictionaryMessage = true;
+      dictionaryMessageTime = millis();
+      requestUpdate();
+      return false;
+    }
+  }
+
+  std::string definition;
+  std::string headword;
+  Dictionary::LookupResult result = Dictionary::LookupResult::NotFound;
+  if (!dict.lookup(word.c_str(), definition, headword, &result)) {
+    return false;
+  }
+
+  haptic_feedback::touchAction(true);
+  startActivityForResult(
+      std::make_unique<DictionaryDefinitionActivity>(renderer, mappedInput, std::move(headword), std::move(definition),
+                                                   dict.definitionsAreHtml()),
+      [this](const ActivityResult&) { requestUpdate(); });
+  return true;
+}
+
+bool EpubReaderActivity::lookupDictionaryWordAtPoint(int x, int y) {
+  if (!section) return false;
+  auto page = section->loadPage(section->currentPage);
+  if (!page) return false;
+
+  const int fontId = SETTINGS.getReaderFontId();
+  const int lineHeight = renderer.getLineHeight(fontId);
+  const int ascender = renderer.getFontAscenderSize(fontId);
+  int orientedMarginTop, orientedMarginRight, orientedMarginBottom, orientedMarginLeft;
+  renderer.getOrientedViewableTRBL(&orientedMarginTop, &orientedMarginRight, &orientedMarginBottom,
+                                   &orientedMarginLeft);
+  orientedMarginTop += SETTINGS.screenMargin;
+  orientedMarginLeft += SETTINGS.screenMargin;
+
+  for (const auto& element : page->elements) {
+    if (element->getTag() != TAG_PageLine) continue;
+    const auto* line = static_cast<const PageLine*>(element.get());
+    const auto* block = line->getBlock();
+    if (!block || !block->valid()) continue;
+
+    const int rubyShift = block->getRubyShift(ascender);
+    for (uint16_t i = 0; i < block->wordCount(); i++) {
+      const char* text = block->wordText(i);
+      if (!text || !isSelectableDictionaryToken(text)) continue;
+
+      const int wordX = line->xPos + block->wordXpos(i) + orientedMarginLeft;
+      const int wordY = line->yPos + orientedMarginTop + rubyShift;
+      const int wordWidth = renderer.getTextAdvanceX(fontId, text, block->wordStyle(i));
+      if (x >= wordX - 4 && x < wordX + wordWidth + 4 && y >= wordY - 4 && y < wordY + lineHeight + 4) {
+        return lookupDictionaryWord(text);
+      }
+    }
+  }
+  return false;
+}
+
 void EpubReaderActivity::openFootnoteSelect(const bool reopenMenuOnCancel) {
   if (!section || currentPageFootnotes.empty()) return;
   if (currentPageFootnotes.size() == 1) {
@@ -504,6 +601,14 @@ void EpubReaderActivity::loop() {
   if (showDictionaryMessage && (millis() - dictionaryMessageTime) >= ReaderUtils::BOOKMARK_MESSAGE_DURATION_MS) {
     showDictionaryMessage = false;
     requestUpdate();
+  }
+
+  int touchLongPressX = 0;
+  int touchLongPressY = 0;
+  if (overlay == Overlay::None && section && mappedInput.wasScreenLongPress(touchLongPressX, touchLongPressY)) {
+    if (lookupDictionaryWordAtPoint(touchLongPressX, touchLongPressY)) {
+      return;
+    }
   }
 
   // The toolbar reader menu owns all input while shown, ahead of the automatic page turn
