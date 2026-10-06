@@ -9,6 +9,8 @@
 #include <cstdlib>
 #include <ctime>
 
+#include <sys/time.h>
+
 namespace trustedtime {
 
 namespace {
