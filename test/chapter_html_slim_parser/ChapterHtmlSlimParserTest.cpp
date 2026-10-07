@@ -213,6 +213,45 @@ TEST_F(ChapterHtmlSlimParserTest, PassesIndentSettingsToNewTextBlock) {
   }
 }
 
+TEST_F(ChapterHtmlSlimParserTest, PlaceholderModeCreatesTextIndicatorWhenNoAltTextExists) {
+  parser.imageRendering = 1;
+  parser.beginParse();
+
+  const XML_Char* attributes[] = {"src", "cover.png", "alt", "", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", attributes);
+  ChapterHtmlSlimParser::endElement(&parser, "img");
+
+  ASSERT_NE(parser.currentTextBlock, nullptr);
+  ASSERT_EQ(parser.currentTextBlock->size(), 1u);
+  EXPECT_EQ(std::string(parser.currentTextBlock->wordAt(0)), "[Image]");
+  EXPECT_EQ(parser.currentPage, nullptr);
+}
+
+TEST_F(ChapterHtmlSlimParserTest, PlaceholderModeRegistersImageTapTarget) {
+  parser.imageRendering = 1;
+  parser.contentBase = "OEBPS/";
+  parser.beginParse();
+
+  const XML_Char* attributes[] = {"src", "images/cover.png", "alt", "cover image", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", attributes);
+  ChapterHtmlSlimParser::endElement(&parser, "img");
+
+  ASSERT_EQ(parser.pendingImagePlaceholderHrefs.size(), 1u);
+  EXPECT_EQ(parser.pendingImagePlaceholderHrefs.front(), "image://OEBPS/images/cover.png");
+}
+
+TEST_F(ChapterHtmlSlimParserTest, PageImageHitTestMatchesRenderedBounds) {
+  auto page = std::make_unique<Page>();
+  auto image = makeUniqueNoThrow<ImageBlock>("/tmp/cover.png", "cover.png", 40, 24);
+  ASSERT_NE(image, nullptr);
+  page->elements.push_back(makeUniqueNoThrow<PageImage>(std::move(image), 18, 32));
+  ASSERT_EQ(page->elements.size(), 1u);
+
+  EXPECT_NE(page->imageAtPoint(26, 40), nullptr);
+  EXPECT_EQ(page->imageAtPoint(8, 40), nullptr);
+  EXPECT_EQ(page->imageAtPoint(26, 70), nullptr);
+}
+
 }  // namespace
 
 TEST(ParagraphIndentation, OverridesNonnegativeCssAndPreservesHangingIndent) {
