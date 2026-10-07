@@ -970,10 +970,24 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
         src.resize(fragmentPos);
       }
 
-      // imageRendering: 0=display, 1=placeholder (alt text only), 2=suppress entirely
+      // imageRendering: 0=display, 1=placeholder (text indicator), 2=suppress entirely
       if (self->imageRendering == 2) {
         self->skipUntilDepth = self->depth;
         self->depth += 1;
+        return;
+      }
+
+      if (self->imageRendering == 1) {
+        const std::string placeholderText = alt.empty() ? "[Image]" : "[Image: " + alt + "]";
+        self->startNewTextBlock(self->blockStyleStack.back()
+                                    .getCombinedBlockStyle(centeredBlockStyle, BlockStyle::CombineAxis::Horizontal)
+                                    .withoutBottom());
+        self->italicUntilDepth = std::min(self->italicUntilDepth, self->depth);
+        self->depth += 1;
+        self->syntheticCharacterData = true;
+        self->characterData(userData, placeholderText.c_str(), static_cast<int>(placeholderText.length()));
+        self->syntheticCharacterData = false;
+        self->skipUntilDepth = self->depth - 1;
         return;
       }
 
@@ -1242,25 +1256,33 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
         }
       }
 
-      // Fallback to alt text if image processing fails
+      // Fallback to alt text if the image could not be decoded or cached.
       if (!alt.empty()) {
-        alt = "[Image: " + alt + "]";
+        const std::string placeholderText = "[Image: " + alt + "]";
         self->startNewTextBlock(self->blockStyleStack.back()
                                     .getCombinedBlockStyle(centeredBlockStyle, BlockStyle::CombineAxis::Horizontal)
                                     .withoutBottom());
         self->italicUntilDepth = std::min(self->italicUntilDepth, self->depth);
         self->depth += 1;
         self->syntheticCharacterData = true;
-        self->characterData(userData, alt.c_str(), alt.length());
+        self->characterData(userData, placeholderText.c_str(), static_cast<int>(placeholderText.length()));
         self->syntheticCharacterData = false;
         // Skip any child content (skip until parent as we pre-advanced depth above)
         self->skipUntilDepth = self->depth - 1;
         return;
       }
 
-      // No alt text, skip
-      self->skipUntilDepth = self->depth;
+      // No alt text and no image replacement path: emit the canonical image label.
+      const std::string placeholderText = "[Image]";
+      self->startNewTextBlock(self->blockStyleStack.back()
+                                  .getCombinedBlockStyle(centeredBlockStyle, BlockStyle::CombineAxis::Horizontal)
+                                  .withoutBottom());
+      self->italicUntilDepth = std::min(self->italicUntilDepth, self->depth);
       self->depth += 1;
+      self->syntheticCharacterData = true;
+      self->characterData(userData, placeholderText.c_str(), static_cast<int>(placeholderText.length()));
+      self->syntheticCharacterData = false;
+      self->skipUntilDepth = self->depth - 1;
       return;
     }
   }
