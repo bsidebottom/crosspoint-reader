@@ -273,6 +273,9 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // X4 Pro: double-click power toggles the frontlight. Disabling frees the
   // power button for shortPwrBtn actions without the double-click wait.
   uint8_t doubleClickPwrLight = 1;
+  // Require a home-button tap to unlock after a power-button wake. Users can
+  // disable this when carrying the device without bag-bump protection.
+  uint8_t unlockProtection = 1;
   uint8_t homeButtonTapAction = static_cast<uint8_t>(HomeButtonAction::Home);
   uint8_t homeButtonDoubleTapAction = static_cast<uint8_t>(HomeButtonAction::ToggleFrontlight);
   uint8_t homeButtonLongPressAction = static_cast<uint8_t>(HomeButtonAction::ReaderMenu);
