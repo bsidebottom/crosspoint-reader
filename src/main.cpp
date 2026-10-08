@@ -234,6 +234,37 @@ void toggleFrontlight() {
   LOG_INF("LIGHT", "Frontlight toggled %s", lightOn ? "on" : "off");
 }
 
+void enterDeepSleep(bool fromTimeout = false);
+
+static bool waitForWakeUnlock(const HalGPIO::WakeupReason wakeupReason) {
+#if defined(SIMULATOR)
+  return true;
+#else
+  if (!SETTINGS.unlockProtection || wakeupReason != HalGPIO::WakeupReason::PowerButton || !gpio.hasHomeKey()) {
+    return true;
+  }
+
+  renderer.fillRect(0, 0, renderer.getScreenWidth(), renderer.getScreenHeight(), false);
+  renderer.drawCenteredText(UI_10_FONT_ID, renderer.getScreenHeight() - 24, tr(STR_PRESS_HOME_TO_UNLOCK), true);
+  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+
+  const unsigned long unlockDeadline = millis() + 5000;
+  while (millis() < unlockDeadline) {
+    gpio.update();
+    if (gpio.wasHomeKeyTapped()) {
+      wakePowerReleasePending = true;
+      LOG_INF("MAIN", "Wake unlock granted via home button");
+      return true;
+    }
+    delay(25);
+  }
+
+  LOG_INF("MAIN", "Wake unlock timed out; sleeping again");
+  enterDeepSleep();
+  return false;
+#endif
+}
+
 bool handleX4ProFrontlightDoubleClick() {
   if (!BoardConfig::isX4Pro() || !SETTINGS.doubleClickPwrLight || !gpio.wasReleased(HalGPIO::BTN_POWER)) {
     return false;
@@ -335,7 +366,7 @@ static void deliverSleepPluginEvents() {
 }
 
 // Enter deep sleep mode
-void enterDeepSleep(bool fromTimeout = false) {
+void enterDeepSleep(bool fromTimeout) {
   HalPowerManager::Lock powerLock;  // Ensure we are at normal CPU frequency for sleep preparation
   APP_STATE.lastSleepFromReader = activityManager.isReaderActivity();
 
@@ -585,6 +616,12 @@ void setup() {
   bool needsWakeRefresh = false;
 
   setupDisplayAndFonts(resume != BootResume::Splash);
+
+  const bool requireWakeUnlock = wakeupReason == HalGPIO::WakeupReason::PowerButton && !isSilentReboot &&
+                                !rebootedFromPanic && !recoveryFirmwareMode && gpio.hasHomeKey();
+  if (requireWakeUnlock && !waitForWakeUnlock(wakeupReason)) {
+    return;
+  }
 
   switch (resume) {
     case BootResume::Silent:
