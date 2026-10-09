@@ -18,6 +18,7 @@
 #include "components/icons/bookmark.h"
 #include "components/icons/cover.h"
 #include "components/icons/folder.h"
+#include "components/icons/check.h"
 #include "components/icons/hotspot.h"
 #include "components/icons/library.h"
 #include "components/icons/recent.h"
@@ -40,6 +41,8 @@ const uint8_t* iconForName(UIIcon icon) {
   switch (icon) {
     case UIIcon::Folder:
       return FolderIcon;
+    case UIIcon::Check:
+      return CheckIcon;
     case UIIcon::Book:
       return BookIcon;
     case UIIcon::Recent:
