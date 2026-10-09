@@ -87,6 +87,8 @@ inline freeink::ui::BitmapRef listIconFor(const UIIcon icon, const int size = 24
     switch (icon) {
       case UIIcon::Folder:
         return freeink::ui::bitmapFromIcon(icon_folder_32);
+      case UIIcon::Check:
+        return freeink::ui::bitmapFromIcon(icon_check_32);
       case UIIcon::Text:
         return freeink::ui::bitmapFromIcon(icon_file_text_32);
       case UIIcon::Image:
@@ -116,6 +118,8 @@ inline freeink::ui::BitmapRef listIconFor(const UIIcon icon, const int size = 24
   switch (icon) {
     case UIIcon::Folder:
       return freeink::ui::bitmapFromIcon(icon_folder_24);
+    case UIIcon::Check:
+        return freeink::ui::bitmapFromIcon(icon_check_24);
     case UIIcon::Text:
       return freeink::ui::bitmapFromIcon(icon_file_text_24);
     case UIIcon::Image:

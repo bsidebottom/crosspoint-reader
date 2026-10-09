@@ -133,6 +133,9 @@ UIIcon UITheme::getFileIcon(const std::string& filename) {
   if (filename.back() == '/') {
     return Folder;
   }
+  if (filename.find("/read/") != std::string::npos || filename.rfind("read/", 0) == 0) {
+    return Check;
+  }
   if (FsHelpers::hasEpubExtension(filename) || FsHelpers::hasXtcExtension(filename)) {
     return Book;
   }
